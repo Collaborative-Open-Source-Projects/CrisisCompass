@@ -62,5 +62,15 @@ export async function GET(request) {
     );
   }
 
+  // Filter the disaster data to only include records from the past 6 months
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  if (listOfDisasters.DisasterDeclarationsSummaries) {
+    listOfDisasters.DisasterDeclarationsSummaries = listOfDisasters.DisasterDeclarationsSummaries.filter(
+      disaster => new Date(disaster.declarationDate) >= sixMonthsAgo
+    );
+  }
+
   return NextResponse.json({ ...listOfDisasters }, { status: 200 });
 }
