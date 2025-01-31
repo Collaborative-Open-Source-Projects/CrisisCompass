@@ -1,22 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
 
-/** 
+/**
+ * GET handler for fetching disaster data based on latitude/longitude.
  * @param {NextRequest} request
- * @returns {NextResponse} 
- */ 
+ * @returns {NextResponse}
+ */
 export async function GET(request) {
-    const searchParams = request.nextUrl.searchParams;
+  const searchParams = request.nextUrl.searchParams;
+  const longitude = searchParams.get('longitude');
+  const latitude = searchParams.get('latitude');
 
-    const longitude = searchParams.get('longitude');
-    const latitude = searchParams.get('latitude');
+  // Fetch location details from FCC API
+  const locURL = `https://geo.fcc.gov/api/census/block/find?latitude=${latitude}&longitude=${longitude}&censusYear=2020&showall=false&format=json`;
+  const locRes = await fetch(locURL);
 
-    let locationDetails = await fetch(`https://geo.fcc.gov/api/census/block/find?latitude=${latitude}&longitude=${longitude}&censusYear=2020&showall=false&format=json`);
+  if (!locRes.ok) {
+    const errorText = await locRes.text();
+    return NextResponse.json(
+      { error: "Failed to fetch location details", details: errorText },
+      { status: 500 }
+    );
+  }
 
-    locationDetails = await locationDetails.json();
+  const locationDetails = await locRes.json();
 
-    let listOfDisasters = await fetch(`https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries?$filter=incidentEndDate%20eq%20null%20and%20fipsStateCode%20eq%20%27${locationDetails["State"]["FIPS"]}%27%20and%20fipsCountyCode%20eq%20%27${locationDetails["County"]["FIPS"].substring(2)}%27&$orderby=incidentBeginDate%20desc`);
+  // Extract FIPS codes from the location details
+  const fipsState = locationDetails?.State?.FIPS;
+  const countyFIPS = locationDetails?.County?.FIPS;
 
-    listOfDisasters = await listOfDisasters.json();
+  if (!fipsState || !countyFIPS) {
+    return NextResponse.json(
+      { error: "Missing FIPS code data in location details", locationDetails },
+      { status: 500 }
+    );
+  }
 
-    return NextResponse.json({ ...listOfDisasters }, { status: 200 });
+  // FEMA expects the county code without the leading digits (typically first two digits)
+  const countyCode = countyFIPS.substring(2);
+
+  // Build FEMA API URL (ensure that your query string matches FEMA's expected format)
+  const femaURL = `https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries?$filter=incidentEndDate eq null and fipsStateCode eq '${fipsState}' and fipsCountyCode eq '${countyCode}'&$orderby=incidentBeginDate desc`;
+
+  // Fetch disaster data from FEMA API
+  const femaRes = await fetch(femaURL);
+  if (!femaRes.ok) {
+    const errorText = await femaRes.text();
+    return NextResponse.json(
+      { error: "Failed to fetch disaster data", details: errorText },
+      { status: 500 }
+    );
+  }
+
+  let listOfDisasters;
+  try {
+    listOfDisasters = await femaRes.json();
+  } catch (err) {
+    const text = await femaRes.text();
+    return NextResponse.json(
+      { error: "Invalid JSON response from FEMA", text },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ ...listOfDisasters }, { status: 200 });
 }
