@@ -10,9 +10,13 @@ export async function GET(request) {
     const longitude = searchParams.get('longitude');
     const latitude = searchParams.get('latitude');
 
-    const locationDetails = await fetch(`https://geo.fcc.gov/api/census/block/find?latitude=${latitude}&longitude=${longitude}&censusYear=2020&showall=false&format=json`);
+    let locationDetails = await fetch(`https://geo.fcc.gov/api/census/block/find?latitude=${latitude}&longitude=${longitude}&censusYear=2020&showall=false&format=json`);
 
-    const listOfDisasters = await fetch(`https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries?$filter=incidentEndDate%20eq%20null%20and%20fipsStateCode%20eq%20%27${locationDetails["State"]["FIPS"]}%27%20and%20fipsCountyCode%20eq%20%27${locationDetails["County"]["FIPS"].substring(2)}%27&$orderby=incidentBeginDate%20desc`);
+    locationDetails = await locationDetails.json();
 
-    return NextResponse.json({ listOfDisasters }, { status: 200 });
+    let listOfDisasters = await fetch(`https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries?$filter=incidentEndDate%20eq%20null%20and%20fipsStateCode%20eq%20%27${locationDetails["State"]["FIPS"]}%27%20and%20fipsCountyCode%20eq%20%27${locationDetails["County"]["FIPS"].substring(2)}%27&$orderby=incidentBeginDate%20desc`);
+
+    listOfDisasters = await listOfDisasters.json();
+
+    return NextResponse.json({ ...listOfDisasters }, { status: 200 });
 }
