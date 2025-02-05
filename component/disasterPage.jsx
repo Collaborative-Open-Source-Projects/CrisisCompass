@@ -20,7 +20,6 @@ L.Icon.Default.mergeOptions({
 
 /** 
  * Component to handle map clicks.
- * Whenever the user clicks, we call onLocationSelect with the lat/lng.
  */
 function ClickHandler({ onLocationSelect }) {
   useMapEvents({
@@ -91,30 +90,59 @@ function getDisasterIcon(disaster) {
 
 /**
  * Filters disasters to those within `radiusMiles` of `center`.
- * `disasters` is an array of objects with .latitude and .longitude from APEX.
  */
 function filterDisastersWithinRadius(disasters, center, radiusMiles = 50) {
   return disasters.filter((d) => {
     const lat = parseFloat(d.latitude);
     const lng = parseFloat(d.longitude);
-    // Skip if we don't have numeric lat/lng
     if (isNaN(lat) || isNaN(lng)) return false;
     const dist = distanceInMiles(center, [lat, lng]);
     return dist <= radiusMiles;
   });
 }
 
+/** 
+ * Create an icon for accommodations. 
+ */
+function getAccommodationIcon() {
+  return new L.Icon({
+    iconUrl: "/icons/hotel.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: "/marker-shadow.png",
+  });
+}
+
+/** 
+ * Helper: fetch accommodations from your Next.js route. 
+ */
+async function fetchAccommodations(latitude, longitude) {
+  try {
+    const res = await fetch(
+      `/api/accommodation?latitude=${latitude}&longitude=${longitude}&radius=1000`
+    );
+    if (!res.ok) {
+      throw new Error(`${res.status} - ${res.statusText}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Error fetching accommodations:", err);
+    return null;
+  }
+}
+
 export function DisastersPage() {
-  const [allDisasters, setAllDisasters] = useState([]);  // All data from APEX
-  const [userLocation, setUserLocation] = useState(null); // [lat, lng]
-  const [disastersNearUser, setDisastersNearUser] = useState([]); // within 50 mi
+  const [allDisasters, setAllDisasters] = useState([]);
+  const [userLocation, setUserLocation] = useState(null);
+  const [disastersNearUser, setDisastersNearUser] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [disastersNearSelected, setDisastersNearSelected] = useState([]);
-
-  // Default coordinates: Los Angeles
+  const [accommodationsUser, setAccommodationsUser] = useState([]);
+  const [accommodationsSelected, setAccommodationsSelected] = useState([]);
   const defaultCoords = [-21.986378553248763, 130.41058593591805];
 
-  // 1) On mount, fetch **all** the APEX disaster data
+  // 1) On mount, fetch all the APEX disaster data
   useEffect(() => {
     fetch("https://apex.oracle.com/pls/apex/hackathonsid/disaster/allRecords")
       .then((res) => {
@@ -124,7 +152,6 @@ export function DisastersPage() {
         return res.json();
       })
       .then((data) => {
-        console.log(data);
         if (data.items) {
           setAllDisasters(data.items);
         } else {
@@ -136,69 +163,112 @@ export function DisastersPage() {
       });
   }, []);
 
-  // 2) Get user's live location and filter disasters within 50 miles of it
+  // 2) Get user's live location -> filter disasters & fetch accommodations
   useEffect(() => {
-    if (!allDisasters.length) return; // Wait till we have APEX data
+    if (!allDisasters.length) return;
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const { latitude, longitude } = position.coords;
           setUserLocation([latitude, longitude]);
-          // Filter only the disasters near user
           const nearby = filterDisastersWithinRadius(
             allDisasters,
             [latitude, longitude],
             50
           );
           setDisastersNearUser(nearby);
+
+          const accomData = await fetchAccommodations(latitude, longitude);
+          if (accomData && accomData.features) {
+            setAccommodationsUser(accomData.features);
+          } else {
+            setAccommodationsUser([]);
+          }
         },
-        (error) => {
+        async (error) => {
           console.error("Error getting geolocation:", error);
-          // Fallback if user denies or fails geolocation
           setUserLocation(defaultCoords);
           setDisastersNearUser(
             filterDisastersWithinRadius(allDisasters, defaultCoords, 50)
           );
+          const accomData = await fetchAccommodations(
+            defaultCoords[0],
+            defaultCoords[1]
+          );
+          if (accomData && accomData.features) {
+            setAccommodationsUser(accomData.features);
+          } else {
+            setAccommodationsUser([]);
+          }
         }
       );
     } else {
-      // If geolocation not supported, just use default
       console.error("Geolocation not supported, using defaults");
       setUserLocation(defaultCoords);
       setDisastersNearUser(
         filterDisastersWithinRadius(allDisasters, defaultCoords, 50)
       );
+      fetchAccommodations(defaultCoords[0], defaultCoords[1]).then(
+        (accomData) => {
+          if (accomData && accomData.features) {
+            setAccommodationsUser(accomData.features);
+          } else {
+            setAccommodationsUser([]);
+          }
+        }
+      );
     }
   }, [allDisasters]);
 
-  // 3) Set up default selected location (LA) and its nearby disasters
+  // 3) Set up default selected location and its nearby disasters
   useEffect(() => {
     setSelectedLocation(defaultCoords);
-    // We can also do a 50 mile filter for LA
-    const nearLA = filterDisastersWithinRadius(allDisasters, defaultCoords, 50);
-    setDisastersNearSelected(nearLA);
+    const nearDefault = filterDisastersWithinRadius(
+      allDisasters,
+      defaultCoords,
+      50
+    );
+    setDisastersNearSelected(nearDefault);
+    fetchAccommodations(defaultCoords[0], defaultCoords[1]).then((accomData) => {
+      if (accomData && accomData.features) {
+        setAccommodationsSelected(accomData.features);
+      } else {
+        setAccommodationsSelected([]);
+      }
+    });
   }, [allDisasters]);
 
-  // 4) When user clicks the map, update selectedLocation and filter new area
-  const handleLocationSelect = (latlng) => {
+  // 4) When user clicks the map, update selectedLocation -> fetch disasters & accommodations
+  const handleLocationSelect = async (latlng) => {
     const { lat, lng } = latlng;
     setSelectedLocation([lat, lng]);
     const nearby = filterDisastersWithinRadius(allDisasters, [lat, lng], 50);
     setDisastersNearSelected(nearby);
+    const accomData = await fetchAccommodations(lat, lng);
+    if (accomData && accomData.features) {
+      setAccommodationsSelected(accomData.features);
+    } else {
+      setAccommodationsSelected([]);
+    }
   };
 
-  // 5) The circle color around user is red if we found any disasters, else blue
+  // 5) Circles for user and selected location
   const circleOptions = {
     color: disastersNearUser?.length > 0 ? "red" : "blue",
     fillColor: disastersNearUser?.length > 0 ? "red" : "blue",
     fillOpacity: 0.2,
   };
 
-  // 6) Build an icon for the “selected location” marker. We'll just pick
-  //    the first disaster’s type if one exists.
+  const circleOptionsSelected = {
+    color: disastersNearSelected?.length > 0 ? "red" : "blue",
+    fillColor: disastersNearSelected?.length > 0 ? "red" : "blue",
+    fillOpacity: 0.2,
+  };
+
+  // 6) Icon for the selected location
   const selectedLocationIcon = useMemo(() => {
     if (disastersNearSelected && disastersNearSelected.length > 0) {
-      // Just pick the first item, or do a “most recent” logic, etc.
       return getDisasterIcon(disastersNearSelected[0]);
     }
     return new L.Icon({
@@ -210,17 +280,17 @@ export function DisastersPage() {
     });
   }, [disastersNearSelected]);
 
-  // 7) The center of the map is userLocation if available, else LA
+  // 7) Map center
   const mapCenter = userLocation || defaultCoords;
 
   return (
     <div className="flex flex-col items-center bg-gray-100 p-8 min-h-screen">
       <div className="text-center mb-6">
         <h1 className="text-4xl font-bold text-blue-600 mb-4">
-          Current Disasters (APEX)
+          Current Disasters & Nearby Accommodations
         </h1>
         <p className="text-lg text-gray-700">
-          Showing disaster data from our Oracle APEX endpoint.
+          Showing real-time data from Oracle APEX and Geoapify.
         </p>
       </div>
 
@@ -235,12 +305,24 @@ export function DisastersPage() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
 
-          {/* Circle around the user's location (50 miles) */}
+          {/* Circle around the user's location */}
           {userLocation && (
-            <Circle center={userLocation} radius={80467} pathOptions={circleOptions} />
+            <Circle
+              center={userLocation}
+              radius={80467}
+              pathOptions={circleOptions}
+            />
           )}
 
-          {/* Handle map clicks */}
+          {/* Circle around the selected location */}
+          {selectedLocation && (
+            <Circle
+              center={selectedLocation}
+              radius={80467}
+              pathOptions={circleOptionsSelected}
+            />
+          )}
+
           <ClickHandler onLocationSelect={handleLocationSelect} />
 
           {/* Marker for user's location */}
@@ -252,7 +334,8 @@ export function DisastersPage() {
                   <ul>
                     {disastersNearUser.map((d) => (
                       <li key={d.id}>
-                        {d.disaster_type} — {new Date(d.date_time).toLocaleDateString()}
+                        {d.disaster_type} —{" "}
+                        {new Date(d.date_time).toLocaleDateString()}
                       </li>
                     ))}
                   </ul>
@@ -263,21 +346,22 @@ export function DisastersPage() {
             </Marker>
           )}
 
-          {/* Marker for the selected location (defaults to LA) */}
+          {/* Marker for the selected location */}
           {selectedLocation && (
             <Marker position={selectedLocation} icon={selectedLocationIcon}>
               <Popup>
                 <h2 className="font-bold text-lg">
                   {selectedLocation[0] === defaultCoords[0] &&
                   selectedLocation[1] === defaultCoords[1]
-                    ? "Default Location (Los Angeles)"
+                    ? "Default Location (LA or another default)"
                     : "Selected Location"}
                 </h2>
                 {disastersNearSelected.length > 0 ? (
                   <ul>
                     {disastersNearSelected.map((d) => (
                       <li key={d.id}>
-                        {d.disaster_type} — {new Date(d.date_time).toLocaleDateString()}
+                        {d.disaster_type} —{" "}
+                        {new Date(d.date_time).toLocaleDateString()}
                       </li>
                     ))}
                   </ul>
@@ -288,9 +372,7 @@ export function DisastersPage() {
             </Marker>
           )}
 
-          {/* Markers for all disasters near the SELECTED location. 
-              They use each disaster's actual lat/long from APEX.
-          */}
+          {/* Disasters near the SELECTED location */}
           {disastersNearSelected.map((disaster) => (
             <Marker
               key={disaster.id}
@@ -309,6 +391,48 @@ export function DisastersPage() {
               </Popup>
             </Marker>
           ))}
+
+          {/* Accommodations near the user's location */}
+          {accommodationsUser.map((accom, idx) => {
+            const [lng, lat] = accom.geometry.coordinates;
+            return (
+              <Marker
+                key={`user-accom-${idx}`}
+                position={[lat, lng]}
+                icon={getAccommodationIcon()}
+              >
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {accom.properties.name || "Accommodation"}
+                  </h2>
+                  {accom.properties.address_line2 && (
+                    <p>{accom.properties.address_line2}</p>
+                  )}
+                </Popup>
+              </Marker>
+            );
+          })}
+
+          {/* Accommodations near the SELECTED location */}
+          {accommodationsSelected.map((accom, idx) => {
+            const [lng, lat] = accom.geometry.coordinates;
+            return (
+              <Marker
+                key={`selected-accom-${idx}`}
+                position={[lat, lng]}
+                icon={getAccommodationIcon()}
+              >
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {accom.properties.name || "Accommodation"}
+                  </h2>
+                  {accom.properties.address_line2 && (
+                    <p>{accom.properties.address_line2}</p>
+                  )}
+                </Popup>
+              </Marker>
+            );
+          })}
         </MapContainer>
       </div>
     </div>
