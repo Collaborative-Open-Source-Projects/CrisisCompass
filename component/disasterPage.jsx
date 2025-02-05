@@ -49,7 +49,7 @@ function distanceInMiles([lat1, lon1], [lat2, lon2]) {
 }
 
 /**
- * Helper: Return a custom Leaflet icon based on the APEX field disaster_type
+ * Helper: Return a custom Leaflet icon based on disaster_type (APEX).
  */
 function getDisasterIcon(disaster) {
   const type = disaster.disaster_type?.toLowerCase() || "";
@@ -78,7 +78,7 @@ function getDisasterIcon(disaster) {
       shadowUrl: "/marker-shadow.png",
     });
   }
-  // Fallback to default marker
+  // Fallback
   return new L.Icon({
     iconUrl: "/marker-icon.png",
     iconSize: [25, 41],
@@ -102,7 +102,7 @@ function filterDisastersWithinRadius(disasters, center, radiusMiles = 50) {
 }
 
 /** 
- * Create an icon for accommodations. 
+ * Icons for each category 
  */
 function getAccommodationIcon() {
   return new L.Icon({
@@ -113,15 +113,49 @@ function getAccommodationIcon() {
     shadowUrl: "/marker-shadow.png",
   });
 }
+function getHospitalIcon() {
+  return new L.Icon({
+    iconUrl: "/icons/hospital.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: "/marker-shadow.png",
+  });
+}
+function getTransportIcon() {
+  return new L.Icon({
+    iconUrl: "/icons/transport.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: "/marker-shadow.png",
+  });
+}
+function getFoodIcon() {
+  return new L.Icon({
+    iconUrl: "/icons/food.png", // Make sure this file exists in /public/icons
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: "/marker-shadow.png",
+  });
+}
+function getShelterIcon() {
+  return new L.Icon({
+    iconUrl: "/icons/shelter.png", // Make sure this file exists in /public/icons
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: "/marker-shadow.png",
+  });
+}
 
 /** 
- * Helper: fetch accommodations from your Next.js route. 
+ * Fetch helpers for all categories
  */
-async function fetchAccommodations(latitude, longitude) {
+async function fetchAccommodations(lat, lng) {
   try {
-    const res = await fetch(
-      `/api/accommodation?latitude=${latitude}&longitude=${longitude}&radius=1000`
-    );
+    const res = await fetch(`/api/accommodation?latitude=${lat}&longitude=${lng}&radius=50`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -131,18 +165,92 @@ async function fetchAccommodations(latitude, longitude) {
     return null;
   }
 }
+async function fetchHospitals(lat, lng) {
+  try {
+    const res = await fetch(`/api/hospital?latitude=${lat}&longitude=${lng}&radius=50`);
+    if (!res.ok) {
+      throw new Error(`${res.status} - ${res.statusText}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Error fetching hospitals:", err);
+    return null;
+  }
+}
+async function fetchTransportation(lat, lng) {
+  try {
+    const res = await fetch(`/api/transportation?latitude=${lat}&longitude=${lng}&radius=50`);
+    if (!res.ok) {
+      throw new Error(`${res.status} - ${res.statusText}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Error fetching transportation:", err);
+    return null;
+  }
+}
+/** 
+ * New: Social Services (Food, Shelter)
+ */
+async function fetchFoodServices(lat, lng) {
+  try {
+    const res = await fetch(`/api/social-services/food?latitude=${lat}&longitude=${lng}&radius=5000`);
+    if (!res.ok) {
+      throw new Error(`${res.status} - ${res.statusText}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Error fetching food services:", err);
+    return null;
+  }
+}
+async function fetchShelterServices(lat, lng) {
+  try {
+    const res = await fetch(`/api/social-services/shelter?latitude=${lat}&longitude=${lng}&radius=5000`);
+    if (!res.ok) {
+      throw new Error(`${res.status} - ${res.statusText}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Error fetching shelter services:", err);
+    return null;
+  }
+}
 
 export function DisastersPage() {
+  // Disasters (APEX)
   const [allDisasters, setAllDisasters] = useState([]);
+  // User location + Disasters near user
   const [userLocation, setUserLocation] = useState(null);
   const [disastersNearUser, setDisastersNearUser] = useState([]);
+  // Selected location + Disasters near selected
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [disastersNearSelected, setDisastersNearSelected] = useState([]);
+
+  // Accommodations
   const [accommodationsUser, setAccommodationsUser] = useState([]);
   const [accommodationsSelected, setAccommodationsSelected] = useState([]);
+
+  // Hospitals
+  const [hospitalsUser, setHospitalsUser] = useState([]);
+  const [hospitalsSelected, setHospitalsSelected] = useState([]);
+
+  // Transportation
+  const [transportUser, setTransportUser] = useState([]);
+  const [transportSelected, setTransportSelected] = useState([]);
+
+  // Social Services: Food
+  const [foodUser, setFoodUser] = useState([]);
+  const [foodSelected, setFoodSelected] = useState([]);
+
+  // Social Services: Shelter
+  const [shelterUser, setShelterUser] = useState([]);
+  const [shelterSelected, setShelterSelected] = useState([]);
+
+  // Default coords
   const defaultCoords = [-21.986378553248763, 130.41058593591805];
 
-  // 1) On mount, fetch all the APEX disaster data
+  // 1) Fetch APEX disaster data
   useEffect(() => {
     fetch("https://apex.oracle.com/pls/apex/hackathonsid/disaster/allRecords")
       .then((res) => {
@@ -163,7 +271,7 @@ export function DisastersPage() {
       });
   }, []);
 
-  // 2) Get user's live location -> filter disasters & fetch accommodations
+  // 2) Once we have disasters, get user location & fetch user-based data
   useEffect(() => {
     if (!allDisasters.length) return;
 
@@ -172,103 +280,138 @@ export function DisastersPage() {
         async (position) => {
           const { latitude, longitude } = position.coords;
           setUserLocation([latitude, longitude]);
-          const nearby = filterDisastersWithinRadius(
-            allDisasters,
-            [latitude, longitude],
-            50
-          );
+
+          // Disasters near user
+          const nearby = filterDisastersWithinRadius(allDisasters, [latitude, longitude], 50);
           setDisastersNearUser(nearby);
 
+          // Fetch accommodations, hospitals, transport, food, shelter
           const accomData = await fetchAccommodations(latitude, longitude);
-          if (accomData && accomData.features) {
-            setAccommodationsUser(accomData.features);
-          } else {
-            setAccommodationsUser([]);
-          }
+          setAccommodationsUser(accomData?.features || []);
+
+          const hospitalData = await fetchHospitals(latitude, longitude);
+          setHospitalsUser(hospitalData?.features || []);
+
+          const transportData = await fetchTransportation(latitude, longitude);
+          setTransportUser(transportData?.features || []);
+
+          const foodData = await fetchFoodServices(latitude, longitude);
+          setFoodUser(foodData?.features || []);
+
+          const shelterData = await fetchShelterServices(latitude, longitude);
+          setShelterUser(shelterData?.features || []);
         },
         async (error) => {
           console.error("Error getting geolocation:", error);
+          // Fallback to default coords
           setUserLocation(defaultCoords);
-          setDisastersNearUser(
-            filterDisastersWithinRadius(allDisasters, defaultCoords, 50)
-          );
-          const accomData = await fetchAccommodations(
-            defaultCoords[0],
-            defaultCoords[1]
-          );
-          if (accomData && accomData.features) {
-            setAccommodationsUser(accomData.features);
-          } else {
-            setAccommodationsUser([]);
-          }
+          setDisastersNearUser(filterDisastersWithinRadius(allDisasters, defaultCoords, 50));
+
+          const accomData = await fetchAccommodations(defaultCoords[0], defaultCoords[1]);
+          setAccommodationsUser(accomData?.features || []);
+
+          const hospitalData = await fetchHospitals(defaultCoords[0], defaultCoords[1]);
+          setHospitalsUser(hospitalData?.features || []);
+
+          const transportData = await fetchTransportation(defaultCoords[0], defaultCoords[1]);
+          setTransportUser(transportData?.features || []);
+
+          const foodData = await fetchFoodServices(defaultCoords[0], defaultCoords[1]);
+          setFoodUser(foodData?.features || []);
+
+          const shelterData = await fetchShelterServices(defaultCoords[0], defaultCoords[1]);
+          setShelterUser(shelterData?.features || []);
         }
       );
     } else {
       console.error("Geolocation not supported, using defaults");
       setUserLocation(defaultCoords);
-      setDisastersNearUser(
-        filterDisastersWithinRadius(allDisasters, defaultCoords, 50)
+      setDisastersNearUser(filterDisastersWithinRadius(allDisasters, defaultCoords, 50));
+
+      // same fallback fetch calls
+      fetchAccommodations(defaultCoords[0], defaultCoords[1]).then((data) =>
+        setAccommodationsUser(data?.features || [])
       );
-      fetchAccommodations(defaultCoords[0], defaultCoords[1]).then(
-        (accomData) => {
-          if (accomData && accomData.features) {
-            setAccommodationsUser(accomData.features);
-          } else {
-            setAccommodationsUser([]);
-          }
-        }
+      fetchHospitals(defaultCoords[0], defaultCoords[1]).then((data) =>
+        setHospitalsUser(data?.features || [])
+      );
+      fetchTransportation(defaultCoords[0], defaultCoords[1]).then((data) =>
+        setTransportUser(data?.features || [])
+      );
+      fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+        setFoodUser(data?.features || [])
+      );
+      fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+        setShelterUser(data?.features || [])
       );
     }
   }, [allDisasters]);
 
-  // 3) Set up default selected location and its nearby disasters
+  // 3) Default selected location -> fetch everything there
   useEffect(() => {
+    if (!allDisasters.length) return;
+
     setSelectedLocation(defaultCoords);
-    const nearDefault = filterDisastersWithinRadius(
-      allDisasters,
-      defaultCoords,
-      50
-    );
+
+    const nearDefault = filterDisastersWithinRadius(allDisasters, defaultCoords, 50);
     setDisastersNearSelected(nearDefault);
-    fetchAccommodations(defaultCoords[0], defaultCoords[1]).then((accomData) => {
-      if (accomData && accomData.features) {
-        setAccommodationsSelected(accomData.features);
-      } else {
-        setAccommodationsSelected([]);
-      }
-    });
+
+    fetchAccommodations(defaultCoords[0], defaultCoords[1]).then((data) =>
+      setAccommodationsSelected(data?.features || [])
+    );
+    fetchHospitals(defaultCoords[0], defaultCoords[1]).then((data) =>
+      setHospitalsSelected(data?.features || [])
+    );
+    fetchTransportation(defaultCoords[0], defaultCoords[1]).then((data) =>
+      setTransportSelected(data?.features || [])
+    );
+    fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+      setFoodSelected(data?.features || [])
+    );
+    fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+      setShelterSelected(data?.features || [])
+    );
   }, [allDisasters]);
 
-  // 4) When user clicks the map, update selectedLocation -> fetch disasters & accommodations
+  // 4) When user clicks, fetch everything for that location
   const handleLocationSelect = async (latlng) => {
     const { lat, lng } = latlng;
     setSelectedLocation([lat, lng]);
+
     const nearby = filterDisastersWithinRadius(allDisasters, [lat, lng], 50);
     setDisastersNearSelected(nearby);
+
     const accomData = await fetchAccommodations(lat, lng);
-    if (accomData && accomData.features) {
-      setAccommodationsSelected(accomData.features);
-    } else {
-      setAccommodationsSelected([]);
-    }
+    setAccommodationsSelected(accomData?.features || []);
+
+    const hospitalData = await fetchHospitals(lat, lng);
+    setHospitalsSelected(hospitalData?.features || []);
+
+    const transportData = await fetchTransportation(lat, lng);
+    setTransportSelected(transportData?.features || []);
+
+    const foodData = await fetchFoodServices(lat, lng);
+    setFoodSelected(foodData?.features || []);
+
+    const shelterData = await fetchShelterServices(lat, lng);
+    setShelterSelected(shelterData?.features || []);
   };
 
-  // 5) Circles for user and selected location
+  // Circle styling
   const circleOptions = {
-    color: disastersNearUser?.length > 0 ? "red" : "blue",
-    fillColor: disastersNearUser?.length > 0 ? "red" : "blue",
+    color: disastersNearUser.length > 0 ? "red" : "blue",
+    fillColor: disastersNearUser.length > 0 ? "red" : "blue",
     fillOpacity: 0.2,
   };
-
   const circleOptionsSelected = {
-    color: disastersNearSelected?.length > 0 ? "red" : "blue",
-    fillColor: disastersNearSelected?.length > 0 ? "red" : "blue",
+    color: disastersNearSelected.length > 0 ? "red" : "blue",
+    fillColor: disastersNearSelected.length > 0 ? "red" : "blue",
     fillOpacity: 0.2,
   };
 
-  // 6) Icon for the selected location
+  // Icon for the SELECTED location
   const selectedLocationIcon = useMemo(() => {
-    if (disastersNearSelected && disastersNearSelected.length > 0) {
+    if (disastersNearSelected?.length > 0) {
       return getDisasterIcon(disastersNearSelected[0]);
     }
     return new L.Icon({
@@ -280,14 +423,14 @@ export function DisastersPage() {
     });
   }, [disastersNearSelected]);
 
-  // 7) Map center
+  // Center the map on userLocation if available, else default
   const mapCenter = userLocation || defaultCoords;
 
   return (
     <div className="flex flex-col items-center bg-gray-100 p-8 min-h-screen">
       <div className="text-center mb-6">
         <h1 className="text-4xl font-bold text-blue-600 mb-4">
-          Current Disasters & Nearby Accommodations
+          Disasters + Social Services + More
         </h1>
         <p className="text-lg text-gray-700">
           Showing real-time data from Oracle APEX and Geoapify.
@@ -298,23 +441,19 @@ export function DisastersPage() {
         <MapContainer
           center={mapCenter}
           zoom={userLocation ? 10 : 4}
-          style={{ height: "400px", width: "100%" }}
+          style={{ height: "600px", width: "100%" }}
         >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
 
-          {/* Circle around the user's location */}
+          {/* Circle for user's location */}
           {userLocation && (
-            <Circle
-              center={userLocation}
-              radius={80467}
-              pathOptions={circleOptions}
-            />
+            <Circle center={userLocation} radius={80467} pathOptions={circleOptions} />
           )}
 
-          {/* Circle around the selected location */}
+          {/* Circle for selected location */}
           {selectedLocation && (
             <Circle
               center={selectedLocation}
@@ -323,9 +462,10 @@ export function DisastersPage() {
             />
           )}
 
+          {/* Handle map clicks */}
           <ClickHandler onLocationSelect={handleLocationSelect} />
 
-          {/* Marker for user's location */}
+          {/* User location marker */}
           {userLocation && (
             <Marker position={userLocation}>
               <Popup>
@@ -334,8 +474,7 @@ export function DisastersPage() {
                   <ul>
                     {disastersNearUser.map((d) => (
                       <li key={d.id}>
-                        {d.disaster_type} —{" "}
-                        {new Date(d.date_time).toLocaleDateString()}
+                        {d.disaster_type} – {new Date(d.date_time).toLocaleDateString()}
                       </li>
                     ))}
                   </ul>
@@ -346,21 +485,21 @@ export function DisastersPage() {
             </Marker>
           )}
 
-          {/* Marker for the selected location */}
+          {/* Selected location marker */}
           {selectedLocation && (
             <Marker position={selectedLocation} icon={selectedLocationIcon}>
               <Popup>
                 <h2 className="font-bold text-lg">
                   {selectedLocation[0] === defaultCoords[0] &&
                   selectedLocation[1] === defaultCoords[1]
-                    ? "Default Location (LA or another default)"
+                    ? "Default Location"
                     : "Selected Location"}
                 </h2>
                 {disastersNearSelected.length > 0 ? (
                   <ul>
                     {disastersNearSelected.map((d) => (
                       <li key={d.id}>
-                        {d.disaster_type} —{" "}
+                        {d.disaster_type} –{" "}
                         {new Date(d.date_time).toLocaleDateString()}
                       </li>
                     ))}
@@ -372,7 +511,7 @@ export function DisastersPage() {
             </Marker>
           )}
 
-          {/* Disasters near the SELECTED location */}
+          {/* DISASTER MARKERS (selected location) */}
           {disastersNearSelected.map((disaster) => (
             <Marker
               key={disaster.id}
@@ -392,43 +531,141 @@ export function DisastersPage() {
             </Marker>
           ))}
 
-          {/* Accommodations near the user's location */}
-          {accommodationsUser.map((accom, idx) => {
-            const [lng, lat] = accom.geometry.coordinates;
+          {/* ACCOMMODATIONS */}
+          {accommodationsUser.map((a, i) => {
+            const [lng, lat] = a.geometry.coordinates;
             return (
-              <Marker
-                key={`user-accom-${idx}`}
-                position={[lat, lng]}
-                icon={getAccommodationIcon()}
-              >
+              <Marker key={`user-accom-${i}`} position={[lat, lng]} icon={getAccommodationIcon()}>
                 <Popup>
                   <h2 className="font-bold text-lg">
-                    {accom.properties.name || "Accommodation"}
+                    {a.properties.name || "Accommodation"}
                   </h2>
-                  {accom.properties.address_line2 && (
-                    <p>{accom.properties.address_line2}</p>
-                  )}
+                  {a.properties.address_line2 && <p>{a.properties.address_line2}</p>}
+                </Popup>
+              </Marker>
+            );
+          })}
+          {accommodationsSelected.map((a, i) => {
+            const [lng, lat] = a.geometry.coordinates;
+            return (
+              <Marker key={`sel-accom-${i}`} position={[lat, lng]} icon={getAccommodationIcon()}>
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {a.properties.name || "Accommodation"}
+                  </h2>
+                  {a.properties.address_line2 && <p>{a.properties.address_line2}</p>}
                 </Popup>
               </Marker>
             );
           })}
 
-          {/* Accommodations near the SELECTED location */}
-          {accommodationsSelected.map((accom, idx) => {
-            const [lng, lat] = accom.geometry.coordinates;
+          {/* HOSPITALS */}
+          {hospitalsUser.map((h, i) => {
+            const [lng, lat] = h.geometry.coordinates;
             return (
-              <Marker
-                key={`selected-accom-${idx}`}
-                position={[lat, lng]}
-                icon={getAccommodationIcon()}
-              >
+              <Marker key={`user-hosp-${i}`} position={[lat, lng]} icon={getHospitalIcon()}>
                 <Popup>
                   <h2 className="font-bold text-lg">
-                    {accom.properties.name || "Accommodation"}
+                    {h.properties.name || "Hospital / Clinic"}
                   </h2>
-                  {accom.properties.address_line2 && (
-                    <p>{accom.properties.address_line2}</p>
-                  )}
+                  {h.properties.address_line2 && <p>{h.properties.address_line2}</p>}
+                </Popup>
+              </Marker>
+            );
+          })}
+          {hospitalsSelected.map((h, i) => {
+            const [lng, lat] = h.geometry.coordinates;
+            return (
+              <Marker key={`sel-hosp-${i}`} position={[lat, lng]} icon={getHospitalIcon()}>
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {h.properties.name || "Hospital / Clinic"}
+                  </h2>
+                  {h.properties.address_line2 && <p>{h.properties.address_line2}</p>}
+                </Popup>
+              </Marker>
+            );
+          })}
+
+          {/* TRANSPORTATION */}
+          {transportUser.map((t, i) => {
+            const [lng, lat] = t.geometry.coordinates;
+            return (
+              <Marker key={`user-trans-${i}`} position={[lat, lng]} icon={getTransportIcon()}>
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {t.properties.name || "Public Transport"}
+                  </h2>
+                  {t.properties.address_line2 && <p>{t.properties.address_line2}</p>}
+                </Popup>
+              </Marker>
+            );
+          })}
+          {transportSelected.map((t, i) => {
+            const [lng, lat] = t.geometry.coordinates;
+            return (
+              <Marker key={`sel-trans-${i}`} position={[lat, lng]} icon={getTransportIcon()}>
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {t.properties.name || "Public Transport"}
+                  </h2>
+                  {t.properties.address_line2 && <p>{t.properties.address_line2}</p>}
+                </Popup>
+              </Marker>
+            );
+          })}
+
+          {/* FOOD SERVICES */}
+          {foodUser.map((f, i) => {
+            const [lng, lat] = f.geometry.coordinates;
+            return (
+              <Marker key={`user-food-${i}`} position={[lat, lng]} icon={getFoodIcon()}>
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {f.properties.name || "Food Service"}
+                  </h2>
+                  {f.properties.address_line2 && <p>{f.properties.address_line2}</p>}
+                </Popup>
+              </Marker>
+            );
+          })}
+          {foodSelected.map((f, i) => {
+            const [lng, lat] = f.geometry.coordinates;
+            return (
+              <Marker key={`sel-food-${i}`} position={[lat, lng]} icon={getFoodIcon()}>
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {f.properties.name || "Food Service"}
+                  </h2>
+                  {f.properties.address_line2 && <p>{f.properties.address_line2}</p>}
+                </Popup>
+              </Marker>
+            );
+          })}
+
+          {/* SHELTER SERVICES */}
+          {shelterUser.map((s, i) => {
+            const [lng, lat] = s.geometry.coordinates;
+            return (
+              <Marker key={`user-shelter-${i}`} position={[lat, lng]} icon={getShelterIcon()}>
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {s.properties.name || "Shelter Service"}
+                  </h2>
+                  {s.properties.address_line2 && <p>{s.properties.address_line2}</p>}
+                </Popup>
+              </Marker>
+            );
+          })}
+          {shelterSelected.map((s, i) => {
+            const [lng, lat] = s.geometry.coordinates;
+            return (
+              <Marker key={`sel-shelter-${i}`} position={[lat, lng]} icon={getShelterIcon()}>
+                <Popup>
+                  <h2 className="font-bold text-lg">
+                    {s.properties.name || "Shelter Service"}
+                  </h2>
+                  {s.properties.address_line2 && <p>{s.properties.address_line2}</p>}
                 </Popup>
               </Marker>
             );
