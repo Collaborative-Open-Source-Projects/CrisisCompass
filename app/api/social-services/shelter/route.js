@@ -20,7 +20,7 @@ export async function GET(request) {
         if (run >= 10) {
             break;
         }
-        shelterServices = await fetch(`https://api.geoapify.com/v2/places?categories=service.social_facility.shelter&filter=circle:${longitude},${latitude},${radius}&bias=proximity:${longitude},${latitude}&limit=20&apiKey=${process.env.PLACE_API}`);
+        shelterServices = await fetch(`https://api.geoapify.com/v2/places?categories=service.social_facility.shelter&filter=circle:${longitude},${latitude},${radius}&bias=proximity:${longitude},${latitude}&limit=10&apiKey=${process.env.PLACE_API}`);
         if (!shelterServices.ok) {
             const errorText = await shelterServices.text();
             return NextResponse.json(

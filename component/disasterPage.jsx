@@ -125,7 +125,7 @@ function getHospitalIcon() {
 function getTransportIcon() {
   return new L.Icon({
     iconUrl: "/icons/transport.png",
-    iconSize: [25, 41],
+    iconSize: [41, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
     shadowUrl: "/marker-shadow.png",
@@ -155,7 +155,7 @@ function getShelterIcon() {
  */
 async function fetchAccommodations(lat, lng) {
   try {
-    const res = await fetch(`/api/accommodation?latitude=${lat}&longitude=${lng}&radius=50`);
+    const res = await fetch(`/api/accommodation?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -167,7 +167,7 @@ async function fetchAccommodations(lat, lng) {
 }
 async function fetchHospitals(lat, lng) {
   try {
-    const res = await fetch(`/api/hospital?latitude=${lat}&longitude=${lng}&radius=50`);
+    const res = await fetch(`/api/hospital?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -179,7 +179,7 @@ async function fetchHospitals(lat, lng) {
 }
 async function fetchTransportation(lat, lng) {
   try {
-    const res = await fetch(`/api/transportation?latitude=${lat}&longitude=${lng}&radius=50`);
+    const res = await fetch(`/api/transportation?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -194,7 +194,7 @@ async function fetchTransportation(lat, lng) {
  */
 async function fetchFoodServices(lat, lng) {
   try {
-    const res = await fetch(`/api/social-services/food?latitude=${lat}&longitude=${lng}&radius=5000`);
+    const res = await fetch(`/api/social-services/food?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -206,7 +206,7 @@ async function fetchFoodServices(lat, lng) {
 }
 async function fetchShelterServices(lat, lng) {
   try {
-    const res = await fetch(`/api/social-services/shelter?latitude=${lat}&longitude=${lng}&radius=5000`);
+    const res = await fetch(`/api/social-services/shelter?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -239,16 +239,16 @@ export function DisastersPage() {
   const [transportUser, setTransportUser] = useState([]);
   const [transportSelected, setTransportSelected] = useState([]);
 
-  // Social Services: Food
-  const [foodUser, setFoodUser] = useState([]);
-  const [foodSelected, setFoodSelected] = useState([]);
+  // // Social Services: Food
+  // const [foodUser, setFoodUser] = useState([]);
+  // const [foodSelected, setFoodSelected] = useState([]);
 
-  // Social Services: Shelter
-  const [shelterUser, setShelterUser] = useState([]);
-  const [shelterSelected, setShelterSelected] = useState([]);
+  // // Social Services: Shelter
+  // const [shelterUser, setShelterUser] = useState([]);
+  // const [shelterSelected, setShelterSelected] = useState([]);
 
   // Default coords
-  const defaultCoords = [-21.986378553248763, 130.41058593591805];
+  const defaultCoords = [34.052235, -118.24368];
 
   // 1) Fetch APEX disaster data
   useEffect(() => {
@@ -295,11 +295,11 @@ export function DisastersPage() {
           const transportData = await fetchTransportation(latitude, longitude);
           setTransportUser(transportData?.features || []);
 
-          const foodData = await fetchFoodServices(latitude, longitude);
-          setFoodUser(foodData?.features || []);
+          // const foodData = await fetchFoodServices(latitude, longitude);
+          // setFoodUser(foodData?.features || []);
 
-          const shelterData = await fetchShelterServices(latitude, longitude);
-          setShelterUser(shelterData?.features || []);
+          // const shelterData = await fetchShelterServices(latitude, longitude);
+          // setShelterUser(shelterData?.features || []);
         },
         async (error) => {
           console.error("Error getting geolocation:", error);
@@ -316,11 +316,11 @@ export function DisastersPage() {
           const transportData = await fetchTransportation(defaultCoords[0], defaultCoords[1]);
           setTransportUser(transportData?.features || []);
 
-          const foodData = await fetchFoodServices(defaultCoords[0], defaultCoords[1]);
-          setFoodUser(foodData?.features || []);
+          // const foodData = await fetchFoodServices(defaultCoords[0], defaultCoords[1]);
+          // setFoodUser(foodData?.features || []);
 
-          const shelterData = await fetchShelterServices(defaultCoords[0], defaultCoords[1]);
-          setShelterUser(shelterData?.features || []);
+          // const shelterData = await fetchShelterServices(defaultCoords[0], defaultCoords[1]);
+          // setShelterUser(shelterData?.features || []);
         }
       );
     } else {
@@ -338,12 +338,12 @@ export function DisastersPage() {
       fetchTransportation(defaultCoords[0], defaultCoords[1]).then((data) =>
         setTransportUser(data?.features || [])
       );
-      fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
-        setFoodUser(data?.features || [])
-      );
-      fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
-        setShelterUser(data?.features || [])
-      );
+      // fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+      //   setFoodUser(data?.features || [])
+      // );
+      // fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+      //   setShelterUser(data?.features || [])
+      // );
     }
   }, [allDisasters]);
 
@@ -365,12 +365,12 @@ export function DisastersPage() {
     fetchTransportation(defaultCoords[0], defaultCoords[1]).then((data) =>
       setTransportSelected(data?.features || [])
     );
-    fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
-      setFoodSelected(data?.features || [])
-    );
-    fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
-      setShelterSelected(data?.features || [])
-    );
+    // fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+    //   setFoodSelected(data?.features || [])
+    // );
+    // fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+    //   setShelterSelected(data?.features || [])
+    // );
   }, [allDisasters]);
 
   // 4) When user clicks, fetch everything for that location
@@ -390,11 +390,11 @@ export function DisastersPage() {
     const transportData = await fetchTransportation(lat, lng);
     setTransportSelected(transportData?.features || []);
 
-    const foodData = await fetchFoodServices(lat, lng);
-    setFoodSelected(foodData?.features || []);
+    // const foodData = await fetchFoodServices(lat, lng);
+    // setFoodSelected(foodData?.features || []);
 
-    const shelterData = await fetchShelterServices(lat, lng);
-    setShelterSelected(shelterData?.features || []);
+    // const shelterData = await fetchShelterServices(lat, lng);
+    // setShelterSelected(shelterData?.features || []);
   };
 
   // Circle styling
@@ -616,7 +616,7 @@ export function DisastersPage() {
           })}
 
           {/* FOOD SERVICES */}
-          {foodUser.map((f, i) => {
+          {/* {foodUser.map((f, i) => {
             const [lng, lat] = f.geometry.coordinates;
             return (
               <Marker key={`user-food-${i}`} position={[lat, lng]} icon={getFoodIcon()}>
@@ -641,10 +641,10 @@ export function DisastersPage() {
                 </Popup>
               </Marker>
             );
-          })}
+          })} */}
 
           {/* SHELTER SERVICES */}
-          {shelterUser.map((s, i) => {
+          {/* {shelterUser.map((s, i) => {
             const [lng, lat] = s.geometry.coordinates;
             return (
               <Marker key={`user-shelter-${i}`} position={[lat, lng]} icon={getShelterIcon()}>
@@ -669,7 +669,7 @@ export function DisastersPage() {
                 </Popup>
               </Marker>
             );
-          })}
+          })} */}
         </MapContainer>
       </div>
     </div>
