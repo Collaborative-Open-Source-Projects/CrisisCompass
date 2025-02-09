@@ -20,7 +20,7 @@ export async function GET(request) {
         if (run >= 10) {
             break;
         }
-        medicalAccs = await fetch(`https://api.geoapify.com/v2/places?categories=healthcare.clinic_or_praxis.general,healthcare.hospital&filter=circle:${longitude},${latitude},${radius}&bias=proximity:${longitude},${latitude}&limit=10&apiKey=${process.env.PLACE_API}`);
+        medicalAccs = await fetch(`https://api.geoapify.com/v2/places?categories=healthcare.clinic_or_praxis.general,healthcare.hospital&filter=circle:${longitude},${latitude},${radius}&bias=proximity:${longitude},${latitude}&limit=10&apiKey=${process.env.PLACE_API_KEY}`);
         if (!medicalAccs.ok) {
             const errorText = await medicalAccs.text();
             return NextResponse.json(
