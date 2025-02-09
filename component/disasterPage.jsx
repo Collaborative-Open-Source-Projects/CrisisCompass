@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -9,6 +9,7 @@ import {
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import RoutingMachine from "./routingMachine";
 
 // Configure default marker icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -125,7 +126,7 @@ function getHospitalIcon() {
 function getTransportIcon() {
   return new L.Icon({
     iconUrl: "/icons/transport.png",
-    iconSize: [25, 41],
+    iconSize: [41, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
     shadowUrl: "/marker-shadow.png",
@@ -155,7 +156,7 @@ function getShelterIcon() {
  */
 async function fetchAccommodations(lat, lng) {
   try {
-    const res = await fetch(`/api/accommodation?latitude=${lat}&longitude=${lng}&radius=50`);
+    const res = await fetch(`/api/accommodation?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -167,7 +168,7 @@ async function fetchAccommodations(lat, lng) {
 }
 async function fetchHospitals(lat, lng) {
   try {
-    const res = await fetch(`/api/hospital?latitude=${lat}&longitude=${lng}&radius=50`);
+    const res = await fetch(`/api/hospital?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -179,7 +180,7 @@ async function fetchHospitals(lat, lng) {
 }
 async function fetchTransportation(lat, lng) {
   try {
-    const res = await fetch(`/api/transportation?latitude=${lat}&longitude=${lng}&radius=50`);
+    const res = await fetch(`/api/transportation?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -194,7 +195,7 @@ async function fetchTransportation(lat, lng) {
  */
 async function fetchFoodServices(lat, lng) {
   try {
-    const res = await fetch(`/api/social-services/food?latitude=${lat}&longitude=${lng}&radius=5000`);
+    const res = await fetch(`/api/social-services/food?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -206,7 +207,25 @@ async function fetchFoodServices(lat, lng) {
 }
 async function fetchShelterServices(lat, lng) {
   try {
-    const res = await fetch(`/api/social-services/shelter?latitude=${lat}&longitude=${lng}&radius=5000`);
+    const res = await fetch(`/api/social-services/shelter?latitude=${lat}&longitude=${lng}`);
+    if (!res.ok) {
+      throw new Error(`${res.status} - ${res.statusText}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("Error fetching shelter services:", err);
+    return null;
+  }
+}
+
+/**
+ * fetch the data of resilience zones
+ * @param {string} county
+ * @returns {Object}
+ */
+async function fetchResilienceZones(lat, lng) {
+  try {
+    const res = await fetch(`/api/fema/resilience-zones?latitude=${lat}&longitude=${lng}`);
     if (!res.ok) {
       throw new Error(`${res.status} - ${res.statusText}`);
     }
@@ -220,9 +239,11 @@ async function fetchShelterServices(lat, lng) {
 export function DisastersPage() {
   // Disasters (APEX)
   const [allDisasters, setAllDisasters] = useState([]);
+
   // User location + Disasters near user
   const [userLocation, setUserLocation] = useState(null);
   const [disastersNearUser, setDisastersNearUser] = useState([]);
+
   // Selected location + Disasters near selected
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [disastersNearSelected, setDisastersNearSelected] = useState([]);
@@ -239,16 +260,19 @@ export function DisastersPage() {
   const [transportUser, setTransportUser] = useState([]);
   const [transportSelected, setTransportSelected] = useState([]);
 
-  // Social Services: Food
-  const [foodUser, setFoodUser] = useState([]);
-  const [foodSelected, setFoodSelected] = useState([]);
+  // // Social Services: Food
+  // const [foodUser, setFoodUser] = useState([]);
+  // const [foodSelected, setFoodSelected] = useState([]);
 
-  // Social Services: Shelter
-  const [shelterUser, setShelterUser] = useState([]);
-  const [shelterSelected, setShelterSelected] = useState([]);
+  // // Social Services: Shelter
+  // const [shelterUser, setShelterUser] = useState([]);
+  // const [shelterSelected, setShelterSelected] = useState([]);
+
+  const [nearResilienceZones, setNearResilienceZones] = useState([]);
+  const [selectedResilienceZones, setSelectedResilienceZones] = useState([]);
 
   // Default coords
-  const defaultCoords = [-21.986378553248763, 130.41058593591805];
+  const defaultCoords = [34.052235, -118.24368];
 
   // 1) Fetch APEX disaster data
   useEffect(() => {
@@ -295,11 +319,14 @@ export function DisastersPage() {
           const transportData = await fetchTransportation(latitude, longitude);
           setTransportUser(transportData?.features || []);
 
-          const foodData = await fetchFoodServices(latitude, longitude);
-          setFoodUser(foodData?.features || []);
+          // const foodData = await fetchFoodServices(latitude, longitude);
+          // setFoodUser(foodData?.features || []);
 
-          const shelterData = await fetchShelterServices(latitude, longitude);
-          setShelterUser(shelterData?.features || []);
+          // const shelterData = await fetchShelterServices(latitude, longitude);
+          // setShelterUser(shelterData?.features || []);
+
+          const resZones = await fetchResilienceZones(latitude, longitude);
+          setNearResilienceZones(resZones || []);
         },
         async (error) => {
           console.error("Error getting geolocation:", error);
@@ -316,11 +343,14 @@ export function DisastersPage() {
           const transportData = await fetchTransportation(defaultCoords[0], defaultCoords[1]);
           setTransportUser(transportData?.features || []);
 
-          const foodData = await fetchFoodServices(defaultCoords[0], defaultCoords[1]);
-          setFoodUser(foodData?.features || []);
+          // const foodData = await fetchFoodServices(defaultCoords[0], defaultCoords[1]);
+          // setFoodUser(foodData?.features || []);
 
-          const shelterData = await fetchShelterServices(defaultCoords[0], defaultCoords[1]);
-          setShelterUser(shelterData?.features || []);
+          // const shelterData = await fetchShelterServices(defaultCoords[0], defaultCoords[1]);
+          // setShelterUser(shelterData?.features || []);
+
+          const resZones = await fetchResilienceZones(defaultCoords[0], defaultCoords[1]);
+          setNearResilienceZones(resZones || []);
         }
       );
     } else {
@@ -338,12 +368,15 @@ export function DisastersPage() {
       fetchTransportation(defaultCoords[0], defaultCoords[1]).then((data) =>
         setTransportUser(data?.features || [])
       );
-      fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
-        setFoodUser(data?.features || [])
-      );
-      fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
-        setShelterUser(data?.features || [])
-      );
+      // fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+      //   setFoodUser(data?.features || [])
+      // );
+      // fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+      //   setShelterUser(data?.features || [])
+      // );
+      fetchResilienceZones(defaultCoords[0], defaultCoords[1]).then(data => {
+        setNearResilienceZones(data || []);
+      });
     }
   }, [allDisasters]);
 
@@ -365,12 +398,15 @@ export function DisastersPage() {
     fetchTransportation(defaultCoords[0], defaultCoords[1]).then((data) =>
       setTransportSelected(data?.features || [])
     );
-    fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
-      setFoodSelected(data?.features || [])
-    );
-    fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
-      setShelterSelected(data?.features || [])
-    );
+    // fetchFoodServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+    //   setFoodSelected(data?.features || [])
+    // );
+    // fetchShelterServices(defaultCoords[0], defaultCoords[1]).then((data) =>
+    //   setShelterSelected(data?.features || [])
+    // );
+    fetchResilienceZones(defaultCoords[0], defaultCoords[1]).then(data => {
+      setSelectedResilienceZones(data || []);
+    });
   }, [allDisasters]);
 
   // 4) When user clicks, fetch everything for that location
@@ -390,11 +426,14 @@ export function DisastersPage() {
     const transportData = await fetchTransportation(lat, lng);
     setTransportSelected(transportData?.features || []);
 
-    const foodData = await fetchFoodServices(lat, lng);
-    setFoodSelected(foodData?.features || []);
+    // const foodData = await fetchFoodServices(lat, lng);
+    // setFoodSelected(foodData?.features || []);
 
-    const shelterData = await fetchShelterServices(lat, lng);
-    setShelterSelected(shelterData?.features || []);
+    // const shelterData = await fetchShelterServices(lat, lng);
+    // setShelterSelected(shelterData?.features || []);
+
+    const resZones = await fetchResilienceZones(lat, lng);
+    setSelectedResilienceZones(resZones || []);
   };
 
   // Circle styling
@@ -425,6 +464,10 @@ export function DisastersPage() {
 
   // Center the map on userLocation if available, else default
   const mapCenter = userLocation || defaultCoords;
+
+  // useEffect(() => { console.log(nearResilienceZones) }, [nearResilienceZones]);
+
+  // useEffect(() => { console.log(selectedResilienceZones) }, [selectedResilienceZones]);
 
   return (
     <div className="flex flex-col items-center bg-gray-100 p-8 min-h-screen">
@@ -615,8 +658,14 @@ export function DisastersPage() {
             );
           })}
 
+          {nearResilienceZones.length && userLocation && nearResilienceZones.map(
+            (ele, index) => <RoutingMachine key={index} waypoints={[[userLocation[0], userLocation[1]], [ele.Latitude, ele.Longitude]]} />
+          )} 
+
+          {selectedResilienceZones.length && selectedLocation && <RouteMachiningRef selectedLocation={selectedLocation} rsZones={selectedResilienceZones}/>}
+
           {/* FOOD SERVICES */}
-          {foodUser.map((f, i) => {
+          {/* {foodUser.map((f, i) => {
             const [lng, lat] = f.geometry.coordinates;
             return (
               <Marker key={`user-food-${i}`} position={[lat, lng]} icon={getFoodIcon()}>
@@ -641,10 +690,10 @@ export function DisastersPage() {
                 </Popup>
               </Marker>
             );
-          })}
+          })} */}
 
           {/* SHELTER SERVICES */}
-          {shelterUser.map((s, i) => {
+          {/* {shelterUser.map((s, i) => {
             const [lng, lat] = s.geometry.coordinates;
             return (
               <Marker key={`user-shelter-${i}`} position={[lat, lng]} icon={getShelterIcon()}>
@@ -669,9 +718,52 @@ export function DisastersPage() {
                 </Popup>
               </Marker>
             );
-          })}
+          })} */}
         </MapContainer>
       </div>
     </div>
   );
 }
+
+// {startLat, startLong, endLat, endLong}
+const RouteMachiningRef = ({selectedLocation, rsZones}) => {
+  const rs1Ref = useRef();
+  const rs2Ref = useRef();
+  const rs3Ref = useRef();
+  const rs4Ref = useRef();
+  const rs5Ref = useRef();
+
+  useEffect(() => {
+    if (rs1Ref.current) {
+      // console.log(rs1Ref.current);
+      rs1Ref.current.setWaypoints([[selectedLocation[0], selectedLocation[1]], [rsZones[0].Latitude, rsZones[0].Longitude]]);
+    }
+    if (rs2Ref.current) {
+      // console.log(rs2Ref.current);
+      rs2Ref.current.setWaypoints([[selectedLocation[0], selectedLocation[1]], [rsZones[1].Latitude, rsZones[1].Longitude]]);    
+    }
+    if (rs3Ref.current) {
+      // console.log(rs3Ref.current);
+      rs3Ref.current.setWaypoints([[selectedLocation[0], selectedLocation[1]], [rsZones[2].Latitude, rsZones[2].Longitude]]);    
+    }
+    if (rs4Ref.current) {
+      // console.log(rs4Ref.current);
+      rs4Ref.current.setWaypoints([[selectedLocation[0], selectedLocation[1]], [rsZones[3].Latitude, rsZones[3].Longitude]]);    
+    }
+    if (rs5Ref.current) {
+      // console.log(rs5Ref.current);
+      rs5Ref.current.setWaypoints([[selectedLocation[0], selectedLocation[1]], [rsZones[4].Latitude, rsZones[4].Longitude]]);     
+    }
+  }, [selectedLocation, rs1Ref, rs2Ref, rs3Ref, rs4Ref, rs5Ref]);
+
+  return (
+    <>
+      <RoutingMachine ref={rs1Ref} waypoints={[[selectedLocation[0], selectedLocation[1]], [rsZones[0].Latitude, rsZones[0].Longitude]]}/>
+      <RoutingMachine ref={rs2Ref} waypoints={[[selectedLocation[0], selectedLocation[1]], [rsZones[1].Latitude, rsZones[1].Longitude]]}/>
+      <RoutingMachine ref={rs3Ref} waypoints={[[selectedLocation[0], selectedLocation[1]], [rsZones[2].Latitude, rsZones[2].Longitude]]}/>
+      <RoutingMachine ref={rs4Ref} waypoints={[[selectedLocation[0], selectedLocation[1]], [rsZones[3].Latitude, rsZones[3].Longitude]]}/>
+      <RoutingMachine ref={rs5Ref} waypoints={[[selectedLocation[0], selectedLocation[1]], [rsZones[4].Latitude, rsZones[4].Longitude]]}/>
+    </>
+  );
+
+};
