@@ -181,7 +181,7 @@ function Page() {
 
         {/* Center Column - Map */}
         <div className="col-span-12 lg:col-span-6">
-          <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow h-[600px]">
+          <div className="p-6 rounded-xl">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-[#003366]">Crisis Map</h2>
               <div className="flex gap-3">
@@ -193,11 +193,11 @@ function Page() {
                 </button>
               </div>
             </div>
-            <div className=" h-[calc(100%-4rem)] rounded-lg flex items-center justify-center border-2 border-dashed border-gray-200">
+            <div className=" h-full rounded-lg flex items-center justify-center border-2 border-dashed border-gray-200">
               {/* Replace the existing map placeholder with: */}
-<div className="bg-white h-[calc(100%-4rem)] rounded-lg">
-  <DisasterPage />
-</div>
+                <div className="bg-white h-full rounded-lg">
+                  <DisasterPage />
+                </div>
             </div>
           </div>
         </div>

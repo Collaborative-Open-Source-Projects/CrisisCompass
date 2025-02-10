@@ -470,11 +470,9 @@ export function DisastersPage() {
   // useEffect(() => { console.log(selectedResilienceZones) }, [selectedResilienceZones]);
 
   return (
-    <div className="flex flex-col items-center bg-gray-100 p-8 min-h-screen">
+    <div className="flex flex-col items-center p-8 min-h-screen">
       <div className="text-center mb-6">
-        <h1 className="text-4xl font-bold text-blue-600 mb-4">
-          Disasters + Social Services + More
-        </h1>
+       
         <p className="text-lg text-gray-700">
           Showing real-time data from Oracle APEX and Geoapify.
         </p>
